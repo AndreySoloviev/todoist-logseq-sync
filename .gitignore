@@ -7,7 +7,7 @@ pnpm-debug.log*
 lerna-debug.log*
 
 # Build output
-dist/
+# dist/ is kept in repo for easy installation
 *.zip
 *.tar.gz
 
