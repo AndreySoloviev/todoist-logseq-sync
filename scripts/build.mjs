@@ -19,13 +19,17 @@ function clean() {
 
 function copyStatic() {
 	const manifestSrc = resolve(root, 'manifest.json')
+	const packageSrc = resolve(root, 'package.json')
 	const readmeSrc = resolve(root, 'README.md')
 	const licenseSrc = resolve(root, 'LICENSE')
+	const iconSrc = resolve(root, 'icon.svg')
 	const manifestDst = resolve(outdir, 'manifest.json')
 	ensureDir(outdir)
 	copyFileSync(manifestSrc, manifestDst)
+	try { copyFileSync(packageSrc, resolve(outdir, 'package.json')) } catch {}
 	try { copyFileSync(readmeSrc, resolve(outdir, 'README.md')) } catch {}
 	try { copyFileSync(licenseSrc, resolve(outdir, 'LICENSE')) } catch {}
+	try { copyFileSync(iconSrc, resolve(outdir, 'icon.svg')) } catch {}
 }
 
 async function run({ watch } = { watch: false }) {

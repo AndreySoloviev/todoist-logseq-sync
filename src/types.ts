@@ -15,6 +15,9 @@ export interface PluginSettings {
 	inboxProjectId?: string
 	journalHeading: string
 	intervalMinutes: number
+	deleteAfterImport: boolean
+	lastSyncTime?: string
+	syncedTaskIds?: string[]
 }
 
 export const defaultSettings: PluginSettings = {
@@ -22,6 +25,9 @@ export const defaultSettings: PluginSettings = {
 	inboxProjectId: undefined,
 	journalHeading: 'Todoist Inbox',
 	intervalMinutes: 5,
+	deleteAfterImport: false,
+	lastSyncTime: undefined,
+	syncedTaskIds: [],
 }
 
 

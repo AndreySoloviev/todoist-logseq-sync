@@ -2650,7 +2650,10 @@
     todoistApiToken: "",
     inboxProjectId: void 0,
     journalHeading: "Todoist Inbox",
-    intervalMinutes: 5
+    intervalMinutes: 5,
+    deleteAfterImport: false,
+    lastSyncTime: void 0,
+    syncedTaskIds: []
   };
 
   // src/todoist.ts
@@ -2695,57 +2698,150 @@
 
   // src/logseq.ts
   var import_libs = __toESM(require_lsplugin_user(), 1);
-  async function ensureTodayJournalHeading(heading) {
-    const page = await logseq.Editor.getCurrentPage();
-    let journalPage = page;
-    if (!journalPage || !journalPage["journal?"]) {
-      const todayName = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
-      journalPage = await logseq.Editor.getPage(todayName);
+  async function addTasksToTodayJournal(tasks) {
+    console.log(`[Logseq Helper] \u0414\u043E\u0431\u0430\u0432\u043B\u044F\u0435\u043C ${tasks.length} \u0437\u0430\u0434\u0430\u0447 \u0432 \u043D\u0430\u0447\u0430\u043B\u043E \u0441\u0435\u0433\u043E\u0434\u043D\u044F\u0448\u043D\u0435\u0433\u043E \u0436\u0443\u0440\u043D\u0430\u043B\u0430...`);
+    logseq.UI.showMsg(`\u{1F4DD} \u0414\u043E\u0431\u0430\u0432\u043B\u044F\u0435\u043C ${tasks.length} \u0437\u0430\u0434\u0430\u0447 \u0432 \u0436\u0443\u0440\u043D\u0430\u043B`, "info", { timeout: 5e3 });
+    if (tasks.length === 0) {
+      logseq.UI.showMsg(`\u2139\uFE0F \u041D\u0435\u0442 \u0437\u0430\u0434\u0430\u0447 \u0434\u043B\u044F \u0434\u043E\u0431\u0430\u0432\u043B\u0435\u043D\u0438\u044F`, "info", { timeout: 5e3 });
+      return;
     }
-    if (!journalPage) return null;
-    const blocks = await logseq.Editor.getPageBlocksTree(journalPage.uuid);
-    let headingBlock = blocks.find((b) => (b.content ?? "").trim() === `## ${heading}`);
-    if (!headingBlock) {
-      const firstBlock = blocks[0];
-      headingBlock = await logseq.Editor.insertBlock(journalPage.uuid, `## ${heading}`, { sibling: false, before: true });
-      if (!headingBlock) return null;
+    try {
+      const today = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
+      console.log(`[Logseq Helper] \u0421\u0435\u0433\u043E\u0434\u043D\u044F\u0448\u043D\u044F\u044F \u0434\u0430\u0442\u0430: ${today}`);
+      logseq.UI.showMsg(`\u{1F4C5} \u0420\u0430\u0431\u043E\u0442\u0430\u0435\u043C \u0441 \u0434\u0430\u0442\u043E\u0439: ${today}`, "info", { timeout: 5e3 });
+      let addedCount = 0;
+      for (let i = tasks.length - 1; i >= 0; i--) {
+        const task = tasks[i];
+        const due = task.due?.string || task.due?.date || "";
+        const labels = task.labels && task.labels.length ? ` #[${task.labels.join("] #[")}]` : "";
+        const taskContent = `${task.content}${due ? ` \u23F0 ${due}` : ""}${labels} #task`.trim();
+        console.log(`[Logseq Helper] \u0417\u0430\u0434\u0430\u0447\u0430 ${i + 1}/${tasks.length}: ${taskContent}`);
+        logseq.UI.showMsg(`\u2795 \u0414\u043E\u0431\u0430\u0432\u043B\u044F\u0435\u043C: ${task.content}`, "info", { timeout: 4e3 });
+        let taskBlock = null;
+        try {
+          console.log(`[Logseq Helper] \u0421\u043F\u043E\u0441\u043E\u0431 1: prependBlockInPage \u0434\u043B\u044F \u0441\u0442\u0440\u0430\u043D\u0438\u0446\u044B "${today}"`);
+          taskBlock = await logseq.Editor.prependBlockInPage(today, taskContent);
+          if (taskBlock) {
+            console.log(`[Logseq Helper] \u2705 prependBlockInPage \u0441\u0440\u0430\u0431\u043E\u0442\u0430\u043B, UUID: ${taskBlock.uuid}`);
+          }
+        } catch (error1) {
+          console.log(`[Logseq Helper] \u274C prependBlockInPage \u043D\u0435 \u0441\u0440\u0430\u0431\u043E\u0442\u0430\u043B:`, error1);
+        }
+        if (!taskBlock) {
+          try {
+            console.log(`[Logseq Helper] \u0421\u043F\u043E\u0441\u043E\u0431 2: appendBlockInPage \u0434\u043B\u044F \u0441\u0442\u0440\u0430\u043D\u0438\u0446\u044B "${today}"`);
+            taskBlock = await logseq.Editor.appendBlockInPage(today, taskContent);
+            if (taskBlock) {
+              console.log(`[Logseq Helper] \u2705 appendBlockInPage \u0441\u0440\u0430\u0431\u043E\u0442\u0430\u043B, UUID: ${taskBlock.uuid}`);
+            }
+          } catch (error2) {
+            console.log(`[Logseq Helper] \u274C appendBlockInPage \u043D\u0435 \u0441\u0440\u0430\u0431\u043E\u0442\u0430\u043B:`, error2);
+          }
+        }
+        if (!taskBlock) {
+          try {
+            console.log(`[Logseq Helper] \u0421\u043F\u043E\u0441\u043E\u0431 3: \u0418\u0449\u0435\u043C \u0441\u0442\u0440\u0430\u043D\u0438\u0446\u0443 "${today}" \u0434\u043B\u044F insertBlock`);
+            let page = await logseq.Editor.getPage(today);
+            if (!page) {
+              console.log(`[Logseq Helper] \u0421\u0442\u0440\u0430\u043D\u0438\u0446\u0430 \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D\u0430, \u0441\u043E\u0437\u0434\u0430\u0451\u043C \u043D\u043E\u0432\u0443\u044E`);
+              page = await logseq.Editor.createPage(today, {}, { journal: true, createFirstBlock: false });
+            }
+            if (page) {
+              console.log(`[Logseq Helper] \u0421\u0442\u0440\u0430\u043D\u0438\u0446\u0430 \u043D\u0430\u0439\u0434\u0435\u043D\u0430/\u0441\u043E\u0437\u0434\u0430\u043D\u0430: ${page.name}, UUID: ${page.uuid}`);
+              taskBlock = await logseq.Editor.insertBlock(page.uuid, taskContent, { sibling: false, before: true });
+              if (taskBlock) {
+                console.log(`[Logseq Helper] \u2705 insertBlock \u0441\u0440\u0430\u0431\u043E\u0442\u0430\u043B, UUID: ${taskBlock.uuid}`);
+              }
+            }
+          } catch (error3) {
+            console.log(`[Logseq Helper] \u274C insertBlock \u043D\u0435 \u0441\u0440\u0430\u0431\u043E\u0442\u0430\u043B:`, error3);
+          }
+        }
+        if (taskBlock) {
+          console.log(`[Logseq Helper] \u0417\u0430\u0434\u0430\u0447\u0430 \u0434\u043E\u0431\u0430\u0432\u043B\u0435\u043D\u0430 \u0443\u0441\u043F\u0435\u0448\u043D\u043E, UUID: ${taskBlock.uuid}`);
+          addedCount++;
+          if (task.description) {
+            console.log(`[Logseq Helper] \u0414\u043E\u0431\u0430\u0432\u043B\u044F\u0435\u043C \u043E\u043F\u0438\u0441\u0430\u043D\u0438\u0435: ${task.description}`);
+            logseq.UI.showMsg(`\u{1F4DD} \u0414\u043E\u0431\u0430\u0432\u043B\u044F\u0435\u043C \u043E\u043F\u0438\u0441\u0430\u043D\u0438\u0435`, "info", { timeout: 3e3 });
+            try {
+              await logseq.Editor.insertBlock(taskBlock.uuid, task.description, { sibling: false });
+              console.log(`[Logseq Helper] \u041E\u043F\u0438\u0441\u0430\u043D\u0438\u0435 \u0434\u043E\u0431\u0430\u0432\u043B\u0435\u043D\u043E`);
+            } catch (descError) {
+              console.error(`[Logseq Helper] \u041E\u0448\u0438\u0431\u043A\u0430 \u0434\u043E\u0431\u0430\u0432\u043B\u0435\u043D\u0438\u044F \u043E\u043F\u0438\u0441\u0430\u043D\u0438\u044F:`, descError);
+              logseq.UI.showMsg(`\u26A0\uFE0F \u041D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u0434\u043E\u0431\u0430\u0432\u0438\u0442\u044C \u043E\u043F\u0438\u0441\u0430\u043D\u0438\u0435`, "warning", { timeout: 6e3 });
+            }
+          }
+        } else {
+          console.error(`[Logseq Helper] \u0412\u0441\u0435 \u0441\u043F\u043E\u0441\u043E\u0431\u044B \u043D\u0435 \u0441\u0440\u0430\u0431\u043E\u0442\u0430\u043B\u0438 \u0434\u043B\u044F \u0437\u0430\u0434\u0430\u0447\u0438: ${task.content}`);
+          logseq.UI.showMsg(`\u274C \u041D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u0434\u043E\u0431\u0430\u0432\u0438\u0442\u044C: ${task.content}`, "error", { timeout: 8e3 });
+        }
+      }
+      console.log(`[Logseq Helper] \u0414\u043E\u0431\u0430\u0432\u043B\u0435\u043D\u043E ${addedCount} \u0438\u0437 ${tasks.length} \u0437\u0430\u0434\u0430\u0447`);
+      if (addedCount > 0) {
+        logseq.UI.showMsg(`\u2705 \u0414\u043E\u0431\u0430\u0432\u043B\u0435\u043D\u043E ${addedCount} \u0437\u0430\u0434\u0430\u0447 \u0432 \u043D\u0430\u0447\u0430\u043B\u043E \u0436\u0443\u0440\u043D\u0430\u043B\u0430`, "success", { timeout: 6e3 });
+      } else {
+        logseq.UI.showMsg(`\u274C \u041D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u0434\u043E\u0431\u0430\u0432\u0438\u0442\u044C \u043D\u0438 \u043E\u0434\u043D\u043E\u0439 \u0437\u0430\u0434\u0430\u0447\u0438`, "error", { timeout: 1e4 });
+      }
+    } catch (error) {
+      console.error("[Logseq Helper] \u041E\u0431\u0449\u0430\u044F \u043E\u0448\u0438\u0431\u043A\u0430 \u043F\u0440\u0438 \u0434\u043E\u0431\u0430\u0432\u043B\u0435\u043D\u0438\u0438 \u0437\u0430\u0434\u0430\u0447:", error);
+      logseq.UI.showMsg(`\u274C \u041E\u0431\u0449\u0430\u044F \u043E\u0448\u0438\u0431\u043A\u0430: ${String(error)}`, "error", { timeout: 1e4 });
+      throw error;
     }
-    return headingBlock.uuid;
-  }
-  async function appendTasksUnderBlock(blockUuid, items) {
-    if (items.length === 0) return;
-    const children = items.map((i) => ({ content: i }));
-    await logseq.Editor.insertBatchBlock(blockUuid, children, { sibling: false });
   }
 
   // src/index.ts
   var timerId = null;
   async function syncOnce(settings) {
+    console.log("[Todoist Sync] \u041D\u0430\u0447\u0438\u043D\u0430\u0435\u0442\u0441\u044F \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0430\u0446\u0438\u044F...");
     if (!settings.todoistApiToken) {
-      console.warn("[Todoist Sync] \u041D\u0435 \u0437\u0430\u0434\u0430\u043D \u0442\u043E\u043A\u0435\u043D Todoist API");
+      const message = "\u041D\u0435 \u0437\u0430\u0434\u0430\u043D \u0442\u043E\u043A\u0435\u043D Todoist API. \u041E\u0442\u043A\u0440\u043E\u0439\u0442\u0435 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0438 \u043F\u043B\u0430\u0433\u0438\u043D\u0430.";
+      console.warn("[Todoist Sync]", message);
+      logseq.UI.showMsg(message, "warning", { timeout: 8e3 });
       return;
     }
     try {
+      console.log("[Todoist Sync] \u041F\u043E\u0434\u043A\u043B\u044E\u0447\u0435\u043D\u0438\u0435 \u043A Todoist API...");
       const todoist = new TodoistClient(settings.todoistApiToken);
-      const tasks = await todoist.getInboxTasks(settings.inboxProjectId);
-      if (tasks.length === 0) return;
-      const blockUuid = await ensureTodayJournalHeading(settings.journalHeading);
-      if (!blockUuid) {
-        console.warn("[Todoist Sync] \u041D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u043D\u0430\u0439\u0442\u0438/\u0441\u043E\u0437\u0434\u0430\u0442\u044C \u0441\u0442\u0440\u0430\u043D\u0438\u0446\u0443 \u0436\u0443\u0440\u043D\u0430\u043B\u0430");
+      let tasks = await todoist.getInboxTasks(settings.inboxProjectId);
+      console.log(`[Todoist Sync] \u041D\u0430\u0439\u0434\u0435\u043D\u043E \u0437\u0430\u0434\u0430\u0447 \u0432 Inbox: ${tasks.length}`);
+      const syncedIds = settings.syncedTaskIds || [];
+      const newTasks = tasks.filter((task) => !syncedIds.includes(task.id));
+      if (newTasks.length === 0) {
+        logseq.UI.showMsg("\u{1F4E5} \u041D\u0435\u0442 \u043D\u043E\u0432\u044B\u0445 \u0437\u0430\u0434\u0430\u0447 \u0432 Todoist Inbox", "info", { timeout: 5e3 });
+        console.log(`[Todoist Sync] \u0412\u0441\u0435 ${tasks.length} \u0437\u0430\u0434\u0430\u0447 \u0443\u0436\u0435 \u0431\u044B\u043B\u0438 \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0438\u0440\u043E\u0432\u0430\u043D\u044B \u0440\u0430\u043D\u0435\u0435`);
         return;
       }
-      const lines = tasks.map((t) => {
-        const due = t.due?.string || t.due?.date || "";
-        const labels = t.labels && t.labels.length ? ` #[${t.labels.join("] #[")}]` : "";
-        const priority = t.priority ? ` P${t.priority}` : "";
-        const link = t.url ? ` <${t.url}>` : "";
-        return `${t.content}${due ? ` \u23F0 ${due}` : ""}${labels}${priority}${link}`.trim();
-      });
-      await appendTasksUnderBlock(blockUuid, lines);
-      await Promise.allSettled(tasks.map((t) => todoist.deleteTask(t.id)));
-      console.log(`[Todoist Sync] \u0421\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0438\u0440\u043E\u0432\u0430\u043D\u043E \u0438 \u0443\u0434\u0430\u043B\u0435\u043D\u043E ${tasks.length} \u0437\u0430\u0434\u0430\u0447`);
+      console.log(`[Todoist Sync] \u041D\u043E\u0432\u044B\u0445 \u0437\u0430\u0434\u0430\u0447 \u0434\u043B\u044F \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0430\u0446\u0438\u0438: ${newTasks.length}`);
+      logseq.UI.showMsg(`\u{1F4E5} \u041D\u0430\u0439\u0434\u0435\u043D\u043E \u043D\u043E\u0432\u044B\u0445 \u0437\u0430\u0434\u0430\u0447: ${newTasks.length}`, "info", { timeout: 4e3 });
+      console.log("[Todoist Sync] \u0414\u043E\u0431\u0430\u0432\u043B\u0435\u043D\u0438\u0435 \u0437\u0430\u0434\u0430\u0447 \u0432 \u0436\u0443\u0440\u043D\u0430\u043B...");
+      await addTasksToTodayJournal(newTasks);
+      const updatedSyncedIds = [...syncedIds, ...newTasks.map((t) => t.id)];
+      if (settings.deleteAfterImport) {
+        console.log("[Todoist Sync] \u0423\u0434\u0430\u043B\u0435\u043D\u0438\u0435 \u0437\u0430\u0434\u0430\u0447 \u0438\u0437 Todoist...");
+        logseq.UI.showMsg("\u{1F5D1}\uFE0F \u0423\u0434\u0430\u043B\u044F\u0435\u043C \u0437\u0430\u0434\u0430\u0447\u0438 \u0438\u0437 Todoist...", "info", { timeout: 3e3 });
+        const results = await Promise.allSettled(newTasks.map((t) => todoist.deleteTask(t.id)));
+        const errors = results.filter((r) => r.status === "rejected");
+        if (errors.length > 0) {
+          console.warn("[Todoist Sync] \u041E\u0448\u0438\u0431\u043A\u0438 \u043F\u0440\u0438 \u0443\u0434\u0430\u043B\u0435\u043D\u0438\u0438 \u0437\u0430\u0434\u0430\u0447:", errors);
+        }
+        await logseq.updateSettings({
+          syncedTaskIds: [],
+          lastSyncTime: (/* @__PURE__ */ new Date()).toISOString()
+        });
+      } else {
+        await logseq.updateSettings({
+          syncedTaskIds: updatedSyncedIds,
+          lastSyncTime: (/* @__PURE__ */ new Date()).toISOString()
+        });
+        console.log(`[Todoist Sync] \u0421\u043E\u0445\u0440\u0430\u043D\u0435\u043D\u043E ${updatedSyncedIds.length} \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0438\u0440\u043E\u0432\u0430\u043D\u043D\u044B\u0445 ID`);
+      }
+      const successMessage = settings.deleteAfterImport ? `\u2705 \u0421\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0438\u0440\u043E\u0432\u0430\u043D\u043E \u0438 \u0443\u0434\u0430\u043B\u0435\u043D\u043E ${newTasks.length} \u0437\u0430\u0434\u0430\u0447 \u0438\u0437 Todoist` : `\u2705 \u0421\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0438\u0440\u043E\u0432\u0430\u043D\u043E ${newTasks.length} \u043D\u043E\u0432\u044B\u0445 \u0437\u0430\u0434\u0430\u0447 (\u0431\u0435\u0437 \u0443\u0434\u0430\u043B\u0435\u043D\u0438\u044F)`;
+      console.log("[Todoist Sync]", successMessage);
+      logseq.UI.showMsg(successMessage, "success", { timeout: 8e3 });
     } catch (e) {
-      console.error("[Todoist Sync] \u041E\u0448\u0438\u0431\u043A\u0430 \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0430\u0446\u0438\u0438", e);
+      const errorMessage = "\u041E\u0448\u0438\u0431\u043A\u0430 \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0430\u0446\u0438\u0438: " + (e instanceof Error ? e.message : String(e));
+      console.error("[Todoist Sync]", errorMessage, e);
+      logseq.UI.showMsg(errorMessage, "error", { timeout: 12e3 });
     }
   }
   function startScheduler(settings) {
@@ -2763,11 +2859,43 @@
     }
   }
   function registerUI() {
+    logseq.provideStyle(`
+		.todoist-toolbar-icon {
+			display: flex !important;
+			align-items: center !important;
+			justify-content: center !important;
+			padding: 8px !important;
+			margin: 2px !important;
+			border-radius: 4px !important;
+			transition: all 0.2s ease !important;
+			cursor: pointer !important;
+			opacity: 0.8 !important;
+			background-color: transparent !important;
+		}
+		
+		.todoist-toolbar-icon:hover {
+			background-color: rgba(0, 0, 0, 0.05) !important;
+			opacity: 1 !important;
+		}
+		
+		.todoist-toolbar-icon svg {
+			transition: opacity 0.2s ease !important;
+		}
+	`);
     logseq.App.registerUIItem("toolbar", {
       key: "todoist-sync-now",
       template: `
-			<a data-on-click="todoistSyncNow" title="Todoist Sync">
-				<span class="ti ti-inbox"></span>
+			<a data-on-click="todoistSyncNow" 
+			   title="\u0421\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0438\u0440\u043E\u0432\u0430\u0442\u044C Todoist Inbox" 
+			   class="todoist-toolbar-icon">
+				<svg width="16" height="16" viewBox="0 0 16 16">
+					<rect width="16" height="16" rx="2" fill="#E44C4C"/>
+					<circle cx="5" cy="6" r="1" fill="white"/>
+					<circle cx="5" cy="10" r="1" fill="white"/>
+					<rect x="7" y="5.5" width="6" height="1" rx="0.5" fill="white"/>
+					<rect x="7" y="9.5" width="4" height="1" rx="0.5" fill="white"/>
+					<path d="M3 4 L6 4 L6 3 L3 3 Z" fill="white"/>
+				</svg>
 			</a>
 		`
     });
@@ -2778,7 +2906,7 @@
   logseq.useSettingsSchema([
     { key: "todoistApiToken", title: "Todoist API Token", description: "\u041B\u0438\u0447\u043D\u044B\u0439 \u0442\u043E\u043A\u0435\u043D \u0438\u0437 Todoist App Console", type: "string", default: defaultSettings.todoistApiToken },
     { key: "inboxProjectId", title: "Inbox Project ID", description: "\u041D\u0435\u043E\u0431\u044F\u0437\u0430\u0442\u0435\u043B\u044C\u043D\u043E. \u0415\u0441\u043B\u0438 \u043F\u0443\u0441\u0442\u043E, \u0431\u0443\u0434\u0435\u0442 \u043D\u0430\u0439\u0434\u0435\u043D \u0430\u0432\u0442\u043E\u043C\u0430\u0442\u0438\u0447\u0435\u0441\u043A\u0438", type: "string", default: defaultSettings.inboxProjectId ?? "" },
-    { key: "journalHeading", title: "\u0417\u0430\u0433\u043E\u043B\u043E\u0432\u043E\u043A \u0432 \u0436\u0443\u0440\u043D\u0430\u043B\u0435", description: "\u041F\u043E\u0434 \u043A\u0430\u043A\u0438\u043C \u0437\u0430\u0433\u043E\u043B\u043E\u0432\u043A\u043E\u043C \u0431\u0443\u0434\u0443\u0442 \u0432\u0441\u0442\u0430\u0432\u043B\u044F\u0442\u044C\u0441\u044F \u0437\u0430\u0434\u0430\u0447\u0438", type: "string", default: defaultSettings.journalHeading },
+    { key: "deleteAfterImport", title: "\u0423\u0434\u0430\u043B\u044F\u0442\u044C \u0437\u0430\u0434\u0430\u0447\u0438 \u0438\u0437 Todoist", description: "\u0423\u0434\u0430\u043B\u044F\u0442\u044C \u0437\u0430\u0434\u0430\u0447\u0438 \u0438\u0437 Todoist \u043F\u043E\u0441\u043B\u0435 \u0438\u043C\u043F\u043E\u0440\u0442\u0430 \u0432 LogSeq", type: "boolean", default: defaultSettings.deleteAfterImport },
     { key: "intervalMinutes", title: "\u0418\u043D\u0442\u0435\u0440\u0432\u0430\u043B (\u043C\u0438\u043D)", description: "\u041A\u0430\u043A \u0447\u0430\u0441\u0442\u043E \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0438\u0440\u043E\u0432\u0430\u0442\u044C", type: "number", default: defaultSettings.intervalMinutes }
   ]);
   logseq.ready(async () => {
@@ -2788,7 +2916,22 @@
     startScheduler(settings);
     logseq.provideModel({
       todoistSyncNow: async () => {
-        await syncOnce(logseq.settings ?? defaultSettings);
+        console.log("[Todoist Sync] \u041A\u043D\u043E\u043F\u043A\u0430 \u043D\u0430\u0436\u0430\u0442\u0430, \u043D\u0430\u0447\u0438\u043D\u0430\u0435\u0442\u0441\u044F \u0440\u0443\u0447\u043D\u0430\u044F \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0430\u0446\u0438\u044F...");
+        logseq.UI.showMsg("\u{1F504} \u041D\u0430\u0447\u0438\u043D\u0430\u0435\u0442\u0441\u044F \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0430\u0446\u0438\u044F...", "info", { timeout: 5e3 });
+        try {
+          await syncOnce(logseq.settings ?? defaultSettings);
+        } catch (error) {
+          console.error("[Todoist Sync] \u041E\u0448\u0438\u0431\u043A\u0430 \u043F\u0440\u0438 \u0440\u0443\u0447\u043D\u043E\u0439 \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0430\u0446\u0438\u0438:", error);
+          logseq.UI.showMsg("\u274C \u041E\u0448\u0438\u0431\u043A\u0430 \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0430\u0446\u0438\u0438", "error", { timeout: 1e4 });
+        }
+      },
+      resetSyncHistory: async () => {
+        console.log("[Todoist Sync] \u0421\u0431\u0440\u043E\u0441 \u0438\u0441\u0442\u043E\u0440\u0438\u0438 \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0430\u0446\u0438\u0438...");
+        await logseq.updateSettings({
+          syncedTaskIds: [],
+          lastSyncTime: void 0
+        });
+        logseq.UI.showMsg("\u{1F504} \u0418\u0441\u0442\u043E\u0440\u0438\u044F \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0430\u0446\u0438\u0438 \u0441\u0431\u0440\u043E\u0448\u0435\u043D\u0430", "success", { timeout: 5e3 });
       }
     });
   }).catch(console.error);

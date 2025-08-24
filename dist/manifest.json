@@ -1,17 +1,16 @@
 {
-  "id": "logseq-todoist-inbox-sync",
+  "id": "_atbxbz3zg",
   "name": "Todoist Inbox Sync",
+  "title": "Todoist Inbox Sync",
   "version": "0.1.0",
-  "description": "Импорт задач из Todoist Inbox в журнал сегодняшнего дня с удалением из Todoist",
-  "author": "",
-  "main": "dist/index.js",
-  "icon": "",
-  "repo": "",
-  "theme": false,
-  "homepage": "",
-  "effects": false,
-  "sponsors": [],
-  "enableOnMobile": true
+  "description": "Import tasks from Todoist Inbox to daily journal",
+  "author": "Developer",
+  "main": "index.js",
+  "entry": "index.js",
+  "icon": "icon.svg",
+  "mode": "shadow",
+  "themes": [],
+  "logseq": {
+    "id": "_atbxbz3zg"
+  }
 }
-
-
