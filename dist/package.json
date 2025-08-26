@@ -1,6 +1,6 @@
 {
   "name": "logseq-todoist-inbox-sync",
-  "version": "0.1.0",
+  "version": "0.1.4",
   "private": true,
   "description": "Плагин Logseq: синхронизация задач из Todoist Inbox в журнал сегодняшнего дня с последующим удалением из Todoist",
   "type": "module",

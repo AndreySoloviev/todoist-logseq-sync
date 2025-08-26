@@ -92,28 +92,10 @@ function stopScheduler(): void {
 }
 
 function registerUI() {
-	// Добавляем CSS стили для hover эффекта
+	// Добавляем CSS для расширения контейнера toolbar, чтобы все кнопки помещались
 	logseq.provideStyle(`
-		.todoist-toolbar-icon {
-			display: flex !important;
-			align-items: center !important;
-			justify-content: center !important;
-			padding: 8px !important;
-			margin: 2px !important;
-			border-radius: 4px !important;
-			transition: all 0.2s ease !important;
-			cursor: pointer !important;
-			opacity: 0.8 !important;
-			background-color: transparent !important;
-		}
-		
-		.todoist-toolbar-icon:hover {
-			background-color: rgba(0, 0, 0, 0.05) !important;
-			opacity: 1 !important;
-		}
-		
-		.todoist-toolbar-icon svg {
-			transition: opacity 0.2s ease !important;
+		.ui-items-container .list-wrap {
+			max-width: 114px !important;
 		}
 	`)
 
@@ -122,15 +104,8 @@ function registerUI() {
 		template: `
 			<a data-on-click="todoistSyncNow" 
 			   title="Синхронизировать Todoist Inbox" 
-			   class="todoist-toolbar-icon">
-				<svg width="16" height="16" viewBox="0 0 16 16">
-					<rect width="16" height="16" rx="2" fill="#E44C4C"/>
-					<circle cx="5" cy="6" r="1" fill="white"/>
-					<circle cx="5" cy="10" r="1" fill="white"/>
-					<rect x="7" y="5.5" width="6" height="1" rx="0.5" fill="white"/>
-					<rect x="7" y="9.5" width="4" height="1" rx="0.5" fill="white"/>
-					<path d="M3 4 L6 4 L6 3 L3 3 Z" fill="white"/>
-				</svg>
+			   class="button">
+				<i class="ti ti-checkbox"></i>
 			</a>
 		`,
 	})
