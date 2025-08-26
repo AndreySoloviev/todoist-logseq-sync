@@ -2792,37 +2792,37 @@
   // src/index.ts
   var timerId = null;
   async function syncOnce(settings) {
-    console.log("[Todoist Sync] \u041D\u0430\u0447\u0438\u043D\u0430\u0435\u0442\u0441\u044F \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0430\u0446\u0438\u044F...");
+    console.log("[Todoist Sync] Starting synchronization...");
     if (!settings.todoistApiToken) {
-      const message = "\u041D\u0435 \u0437\u0430\u0434\u0430\u043D \u0442\u043E\u043A\u0435\u043D Todoist API. \u041E\u0442\u043A\u0440\u043E\u0439\u0442\u0435 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0438 \u043F\u043B\u0430\u0433\u0438\u043D\u0430.";
+      const message = "Todoist API token not set. Please configure in plugin settings.";
       console.warn("[Todoist Sync]", message);
       logseq.UI.showMsg(message, "warning", { timeout: 8e3 });
       return;
     }
     try {
-      console.log("[Todoist Sync] \u041F\u043E\u0434\u043A\u043B\u044E\u0447\u0435\u043D\u0438\u0435 \u043A Todoist API...");
+      console.log("[Todoist Sync] Connecting to Todoist API...");
       const todoist = new TodoistClient(settings.todoistApiToken);
       let tasks = await todoist.getInboxTasks(settings.inboxProjectId);
-      console.log(`[Todoist Sync] \u041D\u0430\u0439\u0434\u0435\u043D\u043E \u0437\u0430\u0434\u0430\u0447 \u0432 Inbox: ${tasks.length}`);
+      console.log(`[Todoist Sync] Found tasks in Inbox: ${tasks.length}`);
       const syncedIds = settings.syncedTaskIds || [];
       const newTasks = tasks.filter((task) => !syncedIds.includes(task.id));
       if (newTasks.length === 0) {
-        logseq.UI.showMsg("\u{1F4E5} \u041D\u0435\u0442 \u043D\u043E\u0432\u044B\u0445 \u0437\u0430\u0434\u0430\u0447 \u0432 Todoist Inbox", "info", { timeout: 5e3 });
-        console.log(`[Todoist Sync] \u0412\u0441\u0435 ${tasks.length} \u0437\u0430\u0434\u0430\u0447 \u0443\u0436\u0435 \u0431\u044B\u043B\u0438 \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0438\u0440\u043E\u0432\u0430\u043D\u044B \u0440\u0430\u043D\u0435\u0435`);
+        logseq.UI.showMsg("\u{1F4E5} No new tasks in Todoist Inbox", "info", { timeout: 5e3 });
+        console.log(`[Todoist Sync] All ${tasks.length} tasks were already synced`);
         return;
       }
-      console.log(`[Todoist Sync] \u041D\u043E\u0432\u044B\u0445 \u0437\u0430\u0434\u0430\u0447 \u0434\u043B\u044F \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0430\u0446\u0438\u0438: ${newTasks.length}`);
-      logseq.UI.showMsg(`\u{1F4E5} \u041D\u0430\u0439\u0434\u0435\u043D\u043E \u043D\u043E\u0432\u044B\u0445 \u0437\u0430\u0434\u0430\u0447: ${newTasks.length}`, "info", { timeout: 4e3 });
-      console.log("[Todoist Sync] \u0414\u043E\u0431\u0430\u0432\u043B\u0435\u043D\u0438\u0435 \u0437\u0430\u0434\u0430\u0447 \u0432 \u0436\u0443\u0440\u043D\u0430\u043B...");
+      console.log(`[Todoist Sync] New tasks to sync: ${newTasks.length}`);
+      logseq.UI.showMsg(`\u{1F4E5} Found new tasks: ${newTasks.length}`, "info", { timeout: 4e3 });
+      console.log("[Todoist Sync] Adding tasks to journal...");
       await addTasksToTodayJournal(newTasks);
       const updatedSyncedIds = [...syncedIds, ...newTasks.map((t) => t.id)];
       if (settings.deleteAfterImport) {
-        console.log("[Todoist Sync] \u0423\u0434\u0430\u043B\u0435\u043D\u0438\u0435 \u0437\u0430\u0434\u0430\u0447 \u0438\u0437 Todoist...");
-        logseq.UI.showMsg("\u{1F5D1}\uFE0F \u0423\u0434\u0430\u043B\u044F\u0435\u043C \u0437\u0430\u0434\u0430\u0447\u0438 \u0438\u0437 Todoist...", "info", { timeout: 3e3 });
+        console.log("[Todoist Sync] Deleting tasks from Todoist...");
+        logseq.UI.showMsg("\u{1F5D1}\uFE0F Deleting tasks from Todoist...", "info", { timeout: 3e3 });
         const results = await Promise.allSettled(newTasks.map((t) => todoist.deleteTask(t.id)));
         const errors = results.filter((r) => r.status === "rejected");
         if (errors.length > 0) {
-          console.warn("[Todoist Sync] \u041E\u0448\u0438\u0431\u043A\u0438 \u043F\u0440\u0438 \u0443\u0434\u0430\u043B\u0435\u043D\u0438\u0438 \u0437\u0430\u0434\u0430\u0447:", errors);
+          console.warn("[Todoist Sync] Errors deleting tasks:", errors);
         }
         await logseq.updateSettings({
           syncedTaskIds: [],
@@ -2833,13 +2833,13 @@
           syncedTaskIds: updatedSyncedIds,
           lastSyncTime: (/* @__PURE__ */ new Date()).toISOString()
         });
-        console.log(`[Todoist Sync] \u0421\u043E\u0445\u0440\u0430\u043D\u0435\u043D\u043E ${updatedSyncedIds.length} \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0438\u0440\u043E\u0432\u0430\u043D\u043D\u044B\u0445 ID`);
+        console.log(`[Todoist Sync] Saved ${updatedSyncedIds.length} synced IDs`);
       }
-      const successMessage = settings.deleteAfterImport ? `\u2705 \u0421\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0438\u0440\u043E\u0432\u0430\u043D\u043E \u0438 \u0443\u0434\u0430\u043B\u0435\u043D\u043E ${newTasks.length} \u0437\u0430\u0434\u0430\u0447 \u0438\u0437 Todoist` : `\u2705 \u0421\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0438\u0440\u043E\u0432\u0430\u043D\u043E ${newTasks.length} \u043D\u043E\u0432\u044B\u0445 \u0437\u0430\u0434\u0430\u0447 (\u0431\u0435\u0437 \u0443\u0434\u0430\u043B\u0435\u043D\u0438\u044F)`;
+      const successMessage = settings.deleteAfterImport ? `\u2705 Synced and deleted ${newTasks.length} tasks from Todoist` : `\u2705 Synced ${newTasks.length} new tasks (not deleted)`;
       console.log("[Todoist Sync]", successMessage);
       logseq.UI.showMsg(successMessage, "success", { timeout: 8e3 });
     } catch (e) {
-      const errorMessage = "\u041E\u0448\u0438\u0431\u043A\u0430 \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0430\u0446\u0438\u0438: " + (e instanceof Error ? e.message : String(e));
+      const errorMessage = "Sync error: " + (e instanceof Error ? e.message : String(e));
       console.error("[Todoist Sync]", errorMessage, e);
       logseq.UI.showMsg(errorMessage, "error", { timeout: 12e3 });
     }
@@ -2868,7 +2868,7 @@
       key: "todoist-sync-now",
       template: `
 			<a data-on-click="todoistSyncNow" 
-			   title="\u0421\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0438\u0440\u043E\u0432\u0430\u0442\u044C Todoist Inbox" 
+			   title="Sync Todoist Inbox" 
 			   class="button">
 				<i class="ti ti-checkbox"></i>
 			</a>
@@ -2879,10 +2879,10 @@
     startScheduler(settings);
   }
   logseq.useSettingsSchema([
-    { key: "todoistApiToken", title: "Todoist API Token", description: "\u041B\u0438\u0447\u043D\u044B\u0439 \u0442\u043E\u043A\u0435\u043D \u0438\u0437 Todoist App Console", type: "string", default: defaultSettings.todoistApiToken },
-    { key: "inboxProjectId", title: "Inbox Project ID", description: "\u041D\u0435\u043E\u0431\u044F\u0437\u0430\u0442\u0435\u043B\u044C\u043D\u043E. \u0415\u0441\u043B\u0438 \u043F\u0443\u0441\u0442\u043E, \u0431\u0443\u0434\u0435\u0442 \u043D\u0430\u0439\u0434\u0435\u043D \u0430\u0432\u0442\u043E\u043C\u0430\u0442\u0438\u0447\u0435\u0441\u043A\u0438", type: "string", default: defaultSettings.inboxProjectId ?? "" },
-    { key: "deleteAfterImport", title: "\u0423\u0434\u0430\u043B\u044F\u0442\u044C \u0437\u0430\u0434\u0430\u0447\u0438 \u0438\u0437 Todoist", description: "\u0423\u0434\u0430\u043B\u044F\u0442\u044C \u0437\u0430\u0434\u0430\u0447\u0438 \u0438\u0437 Todoist \u043F\u043E\u0441\u043B\u0435 \u0438\u043C\u043F\u043E\u0440\u0442\u0430 \u0432 LogSeq", type: "boolean", default: defaultSettings.deleteAfterImport },
-    { key: "intervalMinutes", title: "\u0418\u043D\u0442\u0435\u0440\u0432\u0430\u043B (\u043C\u0438\u043D)", description: "\u041A\u0430\u043A \u0447\u0430\u0441\u0442\u043E \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0438\u0440\u043E\u0432\u0430\u0442\u044C", type: "number", default: defaultSettings.intervalMinutes }
+    { key: "todoistApiToken", title: "Todoist API Token", description: "Personal token from Todoist App Console", type: "string", default: defaultSettings.todoistApiToken },
+    { key: "inboxProjectId", title: "Inbox Project ID", description: "Optional. If empty, will be detected automatically", type: "string", default: defaultSettings.inboxProjectId ?? "" },
+    { key: "deleteAfterImport", title: "Delete tasks from Todoist", description: "Delete tasks from Todoist after importing to LogSeq", type: "boolean", default: defaultSettings.deleteAfterImport },
+    { key: "intervalMinutes", title: "Interval (min)", description: "How often to synchronize", type: "number", default: defaultSettings.intervalMinutes }
   ]);
   logseq.ready(async () => {
     registerUI();
@@ -2891,22 +2891,22 @@
     startScheduler(settings);
     logseq.provideModel({
       todoistSyncNow: async () => {
-        console.log("[Todoist Sync] \u041A\u043D\u043E\u043F\u043A\u0430 \u043D\u0430\u0436\u0430\u0442\u0430, \u043D\u0430\u0447\u0438\u043D\u0430\u0435\u0442\u0441\u044F \u0440\u0443\u0447\u043D\u0430\u044F \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0430\u0446\u0438\u044F...");
-        logseq.UI.showMsg("\u{1F504} \u041D\u0430\u0447\u0438\u043D\u0430\u0435\u0442\u0441\u044F \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0430\u0446\u0438\u044F...", "info", { timeout: 5e3 });
+        console.log("[Todoist Sync] Button clicked, starting manual sync...");
+        logseq.UI.showMsg("\u{1F504} Starting synchronization...", "info", { timeout: 5e3 });
         try {
           await syncOnce(logseq.settings ?? defaultSettings);
         } catch (error) {
-          console.error("[Todoist Sync] \u041E\u0448\u0438\u0431\u043A\u0430 \u043F\u0440\u0438 \u0440\u0443\u0447\u043D\u043E\u0439 \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0430\u0446\u0438\u0438:", error);
-          logseq.UI.showMsg("\u274C \u041E\u0448\u0438\u0431\u043A\u0430 \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0430\u0446\u0438\u0438", "error", { timeout: 1e4 });
+          console.error("[Todoist Sync] Error during manual sync:", error);
+          logseq.UI.showMsg("\u274C Sync error", "error", { timeout: 1e4 });
         }
       },
       resetSyncHistory: async () => {
-        console.log("[Todoist Sync] \u0421\u0431\u0440\u043E\u0441 \u0438\u0441\u0442\u043E\u0440\u0438\u0438 \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0430\u0446\u0438\u0438...");
+        console.log("[Todoist Sync] Resetting sync history...");
         await logseq.updateSettings({
           syncedTaskIds: [],
           lastSyncTime: void 0
         });
-        logseq.UI.showMsg("\u{1F504} \u0418\u0441\u0442\u043E\u0440\u0438\u044F \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0430\u0446\u0438\u0438 \u0441\u0431\u0440\u043E\u0448\u0435\u043D\u0430", "success", { timeout: 5e3 });
+        logseq.UI.showMsg("\u{1F504} Sync history reset", "success", { timeout: 5e3 });
       }
     });
   }).catch(console.error);
